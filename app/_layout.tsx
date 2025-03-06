@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { SplashScreen } from 'expo-router';
 import { isAuthenticated, onAuthStateChange } from '../lib/auth';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -16,15 +16,18 @@ export default function RootLayout() {
   });
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const authenticated = await isAuthenticated();
         setIsLoggedIn(authenticated);
+        setAuthError(null);
       } catch (error) {
         console.error('Error checking authentication:', error);
         setIsLoggedIn(false);
+        setAuthError('Failed to check authentication status');
       } finally {
         setAuthChecked(true);
       }
@@ -34,11 +37,21 @@ export default function RootLayout() {
 
     // Listen for auth state changes
     const { data: authListener } = onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session ? 'Session exists' : 'No session');
       setIsLoggedIn(!!session);
+      
+      // Navigate based on auth state
+      if (session) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/login');
+      }
     });
 
     return () => {
-      authListener?.subscription.unsubscribe();
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe();
+      }
     };
   }, []);
 
@@ -46,7 +59,7 @@ export default function RootLayout() {
     if (authChecked && (fontsLoaded || fontError)) {
       SplashScreen.hideAsync();
       
-      // Redirect based on auth state
+      // Initial navigation based on auth state
       if (!isLoggedIn) {
         router.replace('/login');
       }
@@ -57,6 +70,11 @@ export default function RootLayout() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#0891b2" />
+        {authError && (
+          <Text style={{ marginTop: 10, color: 'red' }}>
+            {authError}
+          </Text>
+        )}
       </View>
     );
   }

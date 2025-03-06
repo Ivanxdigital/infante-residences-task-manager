@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { signIn, signUp } from '../lib/auth';
 import { router } from 'expo-router';
 
@@ -8,10 +8,34 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePassword = (password: string) => {
+    return password.length >= 6;
+  };
 
   const handleAuth = async () => {
+    // Reset error message
+    setErrorMessage(null);
+
+    // Validate inputs
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
+      setErrorMessage('Please enter both email and password');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setErrorMessage('Please enter a valid email address');
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      setErrorMessage('Password must be at least 6 characters long');
       return;
     }
 
@@ -20,7 +44,7 @@ export default function LoginScreen() {
       
       if (isLogin) {
         await signIn(email, password);
-        router.replace('/(tabs)');
+        // Navigation will be handled by the auth state listener in _layout.tsx
       } else {
         await signUp(email, password);
         Alert.alert(
@@ -31,71 +55,87 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       console.error('Authentication error:', error);
-      Alert.alert('Error', error.message || 'Authentication failed. Please try again.');
+      setErrorMessage(error.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Infante Residences</Text>
-        <Text style={styles.subtitle}>
-          {isLogin ? 'Sign in to your account' : 'Create a new account'}
-        </Text>
-      </View>
-
-      <View style={styles.form}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter your email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Enter your password"
-            secureTextEntry
-          />
-        </View>
-
-        <Pressable 
-          style={styles.authButton} 
-          onPress={handleAuth}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#ffffff" size="small" />
-          ) : (
-            <Text style={styles.authButtonText}>
-              {isLogin ? 'Sign In' : 'Sign Up'}
-            </Text>
-          )}
-        </Pressable>
-
-        <Pressable 
-          style={styles.switchButton} 
-          onPress={() => setIsLogin(!isLogin)}
-        >
-          <Text style={styles.switchButtonText}>
-            {isLogin 
-              ? "Don't have an account? Sign Up" 
-              : "Already have an account? Sign In"}
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Infante Residences</Text>
+          <Text style={styles.subtitle}>
+            {isLogin ? 'Sign in to your account' : 'Create a new account'}
           </Text>
-        </Pressable>
-      </View>
-    </View>
+        </View>
+
+        <View style={styles.form}>
+          {errorMessage && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          )}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              secureTextEntry
+              autoComplete="password"
+            />
+          </View>
+
+          <Pressable 
+            style={styles.authButton} 
+            onPress={handleAuth}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <Text style={styles.authButtonText}>
+                {isLogin ? 'Sign In' : 'Sign Up'}
+              </Text>
+            )}
+          </Pressable>
+
+          <Pressable 
+            style={styles.switchButton} 
+            onPress={() => {
+              setIsLogin(!isLogin);
+              setErrorMessage(null);
+            }}
+          >
+            <Text style={styles.switchButtonText}>
+              {isLogin 
+                ? "Don't have an account? Sign Up" 
+                : "Already have an account? Sign In"}
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -103,6 +143,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   header: {
     padding: 16,
@@ -123,6 +167,19 @@ const styles = StyleSheet.create({
   },
   form: {
     padding: 16,
+  },
+  errorContainer: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
   },
   inputGroup: {
     marginBottom: 20,

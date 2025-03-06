@@ -42,20 +42,35 @@ export const signOut = async () => {
 
 // Get the current user
 export const getCurrentUser = async () => {
-  const { data, error } = await supabase.auth.getUser();
+  try {
+    const { data, error } = await supabase.auth.getUser();
 
-  if (error) {
+    if (error) {
+      if (error.message.includes('Auth session missing')) {
+        // This is expected when not logged in
+        console.log('No active session found');
+        return null;
+      }
+      console.error('Error getting current user:', error);
+      return null;
+    }
+
+    return data?.user || null;
+  } catch (error) {
     console.error('Error getting current user:', error);
     return null;
   }
-
-  return data?.user || null;
 };
 
 // Check if the user is authenticated
 export const isAuthenticated = async () => {
-  const user = await getCurrentUser();
-  return !!user;
+  try {
+    const user = await getCurrentUser();
+    return !!user;
+  } catch (error) {
+    console.error('Error checking authentication:', error);
+    return false;
+  }
 };
 
 // Reset password
