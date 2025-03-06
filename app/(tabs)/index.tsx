@@ -1,53 +1,68 @@
-import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, Text } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { TaskCard, Task } from '../../components/TaskCard';
-
-const initialTasks: Task[] = [
-  {
-    id: '1',
-    title: 'Clean Master Bedroom',
-    description: 'Dust surfaces, vacuum floor, make bed, and clean windows',
-    priority: 'high',
-    completed: false,
-    estimatedTime: '45 mins',
-  },
-  {
-    id: '2',
-    title: 'Kitchen Deep Clean',
-    description: 'Clean counters, appliances, and mop floor',
-    priority: 'high',
-    completed: false,
-    estimatedTime: '1 hour',
-  },
-  {
-    id: '3',
-    title: 'Bathroom Maintenance',
-    description: 'Clean toilet, shower, sink, and mirror',
-    priority: 'medium',
-    completed: false,
-    estimatedTime: '30 mins',
-  },
-  {
-    id: '4',
-    title: 'Living Room Tidying',
-    description: 'Vacuum sofa, dust surfaces, and arrange cushions',
-    priority: 'low',
-    completed: false,
-    estimatedTime: '20 mins',
-  },
-];
+import { fetchTasks, toggleTaskCompletion } from '../../lib/tasks';
 
 export default function TasksScreen() {
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(task =>
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ));
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  const loadTasks = async () => {
+    try {
+      setLoading(true);
+      const tasksData = await fetchTasks();
+      setTasks(tasksData);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+      setError('Failed to load tasks. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleTask = async (id: string) => {
+    try {
+      const taskToToggle = tasks.find(task => task.id === id);
+      if (!taskToToggle) return;
+
+      // Optimistically update the UI
+      setTasks(tasks.map(task =>
+        task.id === id ? { ...task, completed: !task.completed } : task
+      ));
+
+      // Update in the database
+      await toggleTaskCompletion(id, !taskToToggle.completed);
+    } catch (err) {
+      console.error('Failed to toggle task:', err);
+      // Revert the optimistic update if there was an error
+      loadTasks();
+    }
   };
 
   const incompleteTasks = tasks.filter(task => !task.completed);
   const completedTasks = tasks.filter(task => task.completed);
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#0891b2" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -58,16 +73,24 @@ export default function TasksScreen() {
         </Text>
       </View>
 
-      {incompleteTasks.map(task => (
-        <TaskCard key={task.id} task={task} onToggle={toggleTask} />
-      ))}
-
-      {completedTasks.length > 0 && (
+      {incompleteTasks.length === 0 && completedTasks.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>No tasks yet. Add some tasks to get started!</Text>
+        </View>
+      ) : (
         <>
-          <Text style={styles.sectionTitle}>Completed</Text>
-          {completedTasks.map(task => (
+          {incompleteTasks.map(task => (
             <TaskCard key={task.id} task={task} onToggle={toggleTask} />
           ))}
+
+          {completedTasks.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Completed</Text>
+              {completedTasks.map(task => (
+                <TaskCard key={task.id} task={task} onToggle={toggleTask} />
+              ))}
+            </>
+          )}
         </>
       )}
     </ScrollView>
@@ -101,5 +124,27 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 8,
     paddingHorizontal: 16,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  emptyState: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 40,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
   },
 });

@@ -9,11 +9,13 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.2.3",
     "@expo/vector-icons": "^14.0.2",
     "@lucide/lab": "^0.1.2",
+    "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
-    "@expo-google-fonts/inter": "^0.2.3",
+    "@supabase/supabase-js": "^2.49.1",
     "expo": "52.0.33",
     "expo-blur": "^14.0.3",
     "expo-constants": "^17.0.5",
@@ -43,6 +45,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~18.3.12",
+    "dotenv": "^16.4.7",
     "typescript": "^5.3.3"
   }
 }

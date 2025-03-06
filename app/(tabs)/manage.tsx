@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { Task } from '../../components/TaskCard';
 import { Plus } from 'lucide-react-native';
+import { createTask } from '../../lib/tasks';
+import { router } from 'expo-router';
 
 export default function ManageScreen() {
   const [newTask, setNewTask] = useState({
@@ -10,19 +12,54 @@ export default function ManageScreen() {
     priority: 'medium' as Task['priority'],
     estimatedTime: '',
   });
+  const [loading, setLoading] = useState(false);
 
   const priorityOptions: Task['priority'][] = ['low', 'medium', 'high'];
 
-  const handleAddTask = () => {
-    // In a real app, this would persist the task to a backend
-    console.log('New task:', newTask);
-    // Reset form
-    setNewTask({
-      title: '',
-      description: '',
-      priority: 'medium',
-      estimatedTime: '',
-    });
+  const handleAddTask = async () => {
+    // Validate form
+    if (!newTask.title.trim()) {
+      Alert.alert('Error', 'Please enter a task title');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Create task in Supabase
+      await createTask({
+        title: newTask.title,
+        description: newTask.description,
+        priority: newTask.priority,
+        completed: false,
+        estimatedTime: newTask.estimatedTime,
+      });
+
+      // Reset form
+      setNewTask({
+        title: '',
+        description: '',
+        priority: 'medium',
+        estimatedTime: '',
+      });
+
+      // Show success message
+      Alert.alert('Success', 'Task created successfully', [
+        { 
+          text: 'View Tasks', 
+          onPress: () => router.navigate('/(tabs)') 
+        },
+        { 
+          text: 'Add Another', 
+          style: 'cancel' 
+        },
+      ]);
+    } catch (error) {
+      console.error('Error adding task:', error);
+      Alert.alert('Error', 'Failed to create task. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,6 +89,7 @@ export default function ManageScreen() {
             placeholder="Enter task description"
             multiline
             numberOfLines={4}
+            textAlignVertical="top"
           />
         </View>
 
@@ -61,7 +99,7 @@ export default function ManageScreen() {
             style={styles.input}
             value={newTask.estimatedTime}
             onChangeText={(text) => setNewTask({ ...newTask, estimatedTime: text })}
-            placeholder="e.g., 30 mins"
+            placeholder="e.g. 30 mins, 1 hour"
           />
         </View>
 
@@ -75,12 +113,14 @@ export default function ManageScreen() {
                   styles.priorityButton,
                   newTask.priority === priority && styles.priorityButtonActive,
                 ]}
-                onPress={() => setNewTask({ ...newTask, priority })}>
+                onPress={() => setNewTask({ ...newTask, priority })}
+              >
                 <Text
                   style={[
                     styles.priorityButtonText,
                     newTask.priority === priority && styles.priorityButtonTextActive,
-                  ]}>
+                  ]}
+                >
                   {priority.charAt(0).toUpperCase() + priority.slice(1)}
                 </Text>
               </Pressable>
@@ -88,9 +128,19 @@ export default function ManageScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.addButton} onPress={handleAddTask}>
-          <Plus size={20} color="#ffffff" />
-          <Text style={styles.addButtonText}>Add Task</Text>
+        <Pressable 
+          style={styles.addButton} 
+          onPress={handleAddTask}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#ffffff" size="small" />
+          ) : (
+            <>
+              <Plus size={20} color="#ffffff" />
+              <Text style={styles.addButtonText}>Add Task</Text>
+            </>
+          )}
         </Pressable>
       </View>
     </ScrollView>
