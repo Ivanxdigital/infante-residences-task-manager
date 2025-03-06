@@ -296,6 +296,7 @@ export default function ProfileScreen() {
           display="default"
           onChange={handleDateChange}
           maximumDate={new Date()}
+          themeVariant="light"
         />
       )}
 
@@ -315,14 +316,17 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
               
-              <DateTimePicker
-                value={tempDate}
-                mode="date"
-                display="spinner"
-                onChange={handleDateChange}
-                maximumDate={new Date()}
-                style={styles.iosDatePicker}
-              />
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  maximumDate={new Date()}
+                  style={styles.iosDatePicker}
+                  textColor="#0f172a"
+                />
+              </View>
               
               <TouchableOpacity 
                 style={styles.confirmButton}
@@ -537,7 +541,8 @@ const styles = StyleSheet.create({
   },
   iosDatePicker: {
     height: 200,
-    marginBottom: 20,
+    width: '100%',
+    backgroundColor: '#ffffff',
   },
   confirmButton: {
     backgroundColor: '#0891b2',
@@ -552,5 +557,13 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
+  },
+  datePickerContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
 }); 
