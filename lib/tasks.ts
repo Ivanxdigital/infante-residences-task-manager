@@ -86,12 +86,17 @@ export const createTask = async (task: Omit<Task, 'id'>): Promise<Task | null> =
       return null;
     }
 
+    // Prepare task data with creator as the default assignee if none specified
+    const taskData = {
+      ...appTaskToDbTask(task),
+      created_by: user.user.id,
+      // If no assignee is specified, assign to the creator (admin)
+      assigned_to: task.assignedTo || user.user.id
+    };
+
     const { data, error } = await supabase
       .from('tasks')
-      .insert({
-        ...appTaskToDbTask(task),
-        created_by: user.user.id
-      })
+      .insert(taskData)
       .select()
       .single();
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { Task } from '../../components/TaskCard';
-import { Plus } from 'lucide-react-native';
+import { Plus, User } from 'lucide-react-native';
 import { createTask } from '../../lib/tasks';
 import { router } from 'expo-router';
-import { isAdmin } from '../../lib/profiles';
+import { isAdmin, getAllProfiles, Profile } from '../../lib/profiles';
 
 export default function ManageScreen() {
   const [newTask, setNewTask] = useState({
@@ -12,10 +12,13 @@ export default function ManageScreen() {
     description: '',
     priority: 'medium' as Task['priority'],
     estimatedTime: '',
+    assignedTo: '' as string | undefined,
   });
   const [loading, setLoading] = useState(false);
   const [userIsAdmin, setUserIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [showAssignees, setShowAssignees] = useState(false);
 
   useEffect(() => {
     checkAdminStatus();
@@ -26,6 +29,12 @@ export default function ManageScreen() {
       setCheckingAdmin(true);
       const adminStatus = await isAdmin();
       setUserIsAdmin(adminStatus);
+      
+      if (adminStatus) {
+        // Load profiles for assignment
+        const profilesData = await getAllProfiles();
+        setProfiles(profilesData);
+      }
     } catch (error) {
       console.error('Error checking admin status:', error);
     } finally {
@@ -52,6 +61,7 @@ export default function ManageScreen() {
         priority: newTask.priority,
         completed: false,
         estimatedTime: newTask.estimatedTime,
+        assignedTo: newTask.assignedTo || undefined,
       });
 
       if (!createdTask) {
@@ -65,7 +75,9 @@ export default function ManageScreen() {
         description: '',
         priority: 'medium',
         estimatedTime: '',
+        assignedTo: '',
       });
+      setShowAssignees(false);
 
       // Show success message
       Alert.alert('Success', 'Task created successfully', [
@@ -84,6 +96,16 @@ export default function ManageScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleAssignees = () => {
+    setShowAssignees(!showAssignees);
+  };
+
+  const assignToUser = (profileId: string, fullName: string | null) => {
+    setNewTask({ ...newTask, assignedTo: profileId });
+    setShowAssignees(false);
+    Alert.alert('Task Assignment', `Task will be assigned to ${fullName || 'selected user'}`);
   };
 
   if (checkingAdmin) {
@@ -172,6 +194,58 @@ export default function ManageScreen() {
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <View style={styles.assignHeader}>
+            <Text style={styles.label}>Assign To</Text>
+            <TouchableOpacity 
+              style={styles.assignButton}
+              onPress={toggleAssignees}
+            >
+              <User size={16} color="#0891b2" />
+              <Text style={styles.assignButtonText}>
+                {showAssignees ? 'Hide' : 'Show'} Users
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          {showAssignees && (
+            <View style={styles.assigneesContainer}>
+              <TouchableOpacity 
+                style={styles.assigneeItem}
+                onPress={() => assignToUser('', 'Yourself (Default)')}
+              >
+                <Text style={styles.assigneeName}>Assign to yourself (Default)</Text>
+              </TouchableOpacity>
+              
+              {profiles.map(profile => (
+                <TouchableOpacity 
+                  key={profile.id}
+                  style={styles.assigneeItem}
+                  onPress={() => assignToUser(profile.id, profile.full_name)}
+                >
+                  <Text style={styles.assigneeName}>
+                    {profile.full_name || profile.id.substring(0, 8)}
+                  </Text>
+                  <Text style={styles.assigneeRole}>{profile.role}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          
+          {newTask.assignedTo && (
+            <View style={styles.selectedAssignee}>
+              <User size={14} color="#64748b" />
+              <Text style={styles.selectedAssigneeText}>
+                Assigned to: {
+                  newTask.assignedTo === '' 
+                    ? 'Yourself' 
+                    : profiles.find(p => p.id === newTask.assignedTo)?.full_name || 'Selected User'
+                }
+              </Text>
+            </View>
+          )}
         </View>
 
         <Pressable 
@@ -283,6 +357,65 @@ const styles = StyleSheet.create({
   },
   priorityButtonTextActive: {
     color: '#ffffff',
+  },
+  assignHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  assignButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 6,
+  },
+  assignButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#0891b2',
+  },
+  assigneesContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 12,
+  },
+  assigneeItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  assigneeName: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#0f172a',
+  },
+  assigneeRole: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: '#64748b',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  selectedAssignee: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f1f5f9',
+    padding: 8,
+    borderRadius: 6,
+  },
+  selectedAssigneeText: {
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+    color: '#64748b',
   },
   addButton: {
     backgroundColor: '#0891b2',
