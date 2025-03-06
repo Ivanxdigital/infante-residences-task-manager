@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { Task } from '../../components/TaskCard';
 import { Plus } from 'lucide-react-native';
 import { createTask } from '../../lib/tasks';
 import { router } from 'expo-router';
+import { isAdmin } from '../../lib/profiles';
 
 export default function ManageScreen() {
   const [newTask, setNewTask] = useState({
@@ -13,6 +14,24 @@ export default function ManageScreen() {
     estimatedTime: '',
   });
   const [loading, setLoading] = useState(false);
+  const [userIsAdmin, setUserIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  useEffect(() => {
+    checkAdminStatus();
+  }, []);
+
+  const checkAdminStatus = async () => {
+    try {
+      setCheckingAdmin(true);
+      const adminStatus = await isAdmin();
+      setUserIsAdmin(adminStatus);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+    } finally {
+      setCheckingAdmin(false);
+    }
+  };
 
   const priorityOptions: Task['priority'][] = ['low', 'medium', 'high'];
 
@@ -27,13 +46,18 @@ export default function ManageScreen() {
       setLoading(true);
       
       // Create task in Supabase
-      await createTask({
+      const createdTask = await createTask({
         title: newTask.title,
         description: newTask.description,
         priority: newTask.priority,
         completed: false,
         estimatedTime: newTask.estimatedTime,
       });
+
+      if (!createdTask) {
+        Alert.alert('Error', 'Failed to create task. Only admins can create tasks.');
+        return;
+      }
 
       // Reset form
       setNewTask({
@@ -61,6 +85,28 @@ export default function ManageScreen() {
       setLoading(false);
     }
   };
+
+  if (checkingAdmin) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#0891b2" />
+      </View>
+    );
+  }
+
+  if (!userIsAdmin) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>Only admins can create tasks</Text>
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.buttonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -152,6 +198,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#ef4444',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  button: {
+    backgroundColor: '#0891b2',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
   header: {
     padding: 16,
     paddingTop: 24,
@@ -181,21 +251,20 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   textArea: {
-    height: 100,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
   priorityContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   priorityButton: {
     flex: 1,

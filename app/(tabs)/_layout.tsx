@@ -1,7 +1,24 @@
+import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { CircleCheck as CheckCircle2, ListTodo, Settings } from 'lucide-react-native';
+import { CircleCheck as CheckCircle2, ListTodo, Settings, ShieldCheck } from 'lucide-react-native';
+import { isAdmin } from '../../lib/profiles';
 
 export default function TabLayout() {
+  const [userIsAdmin, setUserIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        const adminStatus = await isAdmin();
+        setUserIsAdmin(adminStatus);
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
+    checkAdminStatus();
+  }, []);
+
   return (
     <Tabs
       screenOptions={{
@@ -31,6 +48,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <CheckCircle2 size={size} color={color} />,
         }}
       />
+      {userIsAdmin && (
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: 'Admin',
+            headerTitle: 'Infante Residences',
+            tabBarIcon: ({ color, size }) => <ShieldCheck size={size} color={color} />,
+          }}
+        />
+      )}
       <Tabs.Screen
         name="manage"
         options={{

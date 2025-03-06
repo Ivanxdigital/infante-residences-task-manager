@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Clock, CircleAlert as AlertCircle } from 'lucide-react-native';
+import { Clock, CircleAlert as AlertCircle, FileText, User } from 'lucide-react-native';
 
 export type Priority = 'low' | 'medium' | 'high';
 
@@ -10,11 +10,15 @@ export interface Task {
   priority: Priority;
   completed: boolean;
   estimatedTime?: string;
+  notes?: string;
+  assignedTo?: string;
 }
 
 interface TaskCardProps {
   task: Task;
   onToggle: (id: string) => void;
+  showAssignee?: boolean;
+  showNotes?: boolean;
 }
 
 const priorityColors = {
@@ -23,7 +27,7 @@ const priorityColors = {
   high: '#ef4444',
 };
 
-export function TaskCard({ task, onToggle }: TaskCardProps) {
+export function TaskCard({ task, onToggle, showAssignee = false, showNotes = false }: TaskCardProps) {
   return (
     <Pressable
       style={[styles.card, task.completed && styles.completedCard]}
@@ -34,6 +38,14 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
         <Text style={[styles.description, task.completed && styles.completedText]}>
           {task.description}
         </Text>
+        
+        {showNotes && task.notes && (
+          <View style={styles.notesContainer}>
+            <FileText size={14} color="#64748b" />
+            <Text style={styles.notesText}>{task.notes}</Text>
+          </View>
+        )}
+        
         <View style={styles.metadata}>
           {task.estimatedTime && (
             <View style={styles.metaItem}>
@@ -47,6 +59,12 @@ export function TaskCard({ task, onToggle }: TaskCardProps) {
               {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
             </Text>
           </View>
+          {showAssignee && task.assignedTo && (
+            <View style={styles.metaItem}>
+              <User size={16} color="#64748b" />
+              <Text style={styles.metaText}>Assigned</Text>
+            </View>
+          )}
         </View>
       </View>
     </Pressable>
@@ -107,5 +125,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: '#64748b',
+  },
+  notesContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f8fafc',
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 12,
+    gap: 6,
+  },
+  notesText: {
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+    color: '#64748b',
+    flex: 1,
   },
 });
