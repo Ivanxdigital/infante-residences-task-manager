@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Clock, CircleAlert as AlertCircle, FileText, User } from 'lucide-react-native';
+import { Clock, CircleAlert as AlertCircle, FileText, User, Home } from 'lucide-react-native';
 
 export type Priority = 'low' | 'medium' | 'high';
 
@@ -12,6 +12,8 @@ export interface Task {
   estimatedTime?: string;
   notes?: string;
   assignedTo?: string;
+  roomId?: string;
+  roomName?: string;
 }
 
 interface TaskCardProps {
@@ -19,6 +21,7 @@ interface TaskCardProps {
   onToggle: (id: string) => void;
   showAssignee?: boolean;
   showNotes?: boolean;
+  showRoom?: boolean;
 }
 
 const priorityColors = {
@@ -27,7 +30,7 @@ const priorityColors = {
   high: '#ef4444',
 };
 
-export function TaskCard({ task, onToggle, showAssignee = false, showNotes = false }: TaskCardProps) {
+export function TaskCard({ task, onToggle, showAssignee = false, showNotes = false, showRoom = true }: TaskCardProps) {
   return (
     <Pressable
       style={[styles.card, task.completed && styles.completedCard]}
@@ -63,6 +66,12 @@ export function TaskCard({ task, onToggle, showAssignee = false, showNotes = fal
             <View style={styles.metaItem}>
               <User size={16} color="#64748b" />
               <Text style={styles.metaText}>Assigned</Text>
+            </View>
+          )}
+          {showRoom && task.roomName && (
+            <View style={styles.metaItem}>
+              <Home size={16} color="#64748b" />
+              <Text style={styles.metaText}>{task.roomName}</Text>
             </View>
           )}
         </View>

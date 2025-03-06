@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { Task } from '../../components/TaskCard';
-import { Plus, User } from 'lucide-react-native';
+import { Plus, User, Home } from 'lucide-react-native';
 import { createTask } from '../../lib/tasks';
 import { router } from 'expo-router';
 import { isAdmin, getAllProfiles, Profile } from '../../lib/profiles';
+import { fetchRooms, Room } from '../../lib/rooms';
 
 export default function ManageScreen() {
   const [newTask, setNewTask] = useState({
@@ -13,12 +14,15 @@ export default function ManageScreen() {
     priority: 'medium' as Task['priority'],
     estimatedTime: '',
     assignedTo: '' as string | undefined,
+    roomId: '' as string | undefined,
   });
   const [loading, setLoading] = useState(false);
   const [userIsAdmin, setUserIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [showAssignees, setShowAssignees] = useState(false);
+  const [showRooms, setShowRooms] = useState(false);
 
   useEffect(() => {
     checkAdminStatus();
@@ -34,6 +38,10 @@ export default function ManageScreen() {
         // Load profiles for assignment
         const profilesData = await getAllProfiles();
         setProfiles(profilesData);
+        
+        // Load rooms for selection
+        const roomsData = await fetchRooms();
+        setRooms(roomsData);
       }
     } catch (error) {
       console.error('Error checking admin status:', error);
@@ -62,6 +70,7 @@ export default function ManageScreen() {
         completed: false,
         estimatedTime: newTask.estimatedTime,
         assignedTo: newTask.assignedTo || undefined,
+        roomId: newTask.roomId || undefined,
       });
 
       if (!createdTask) {
@@ -76,8 +85,10 @@ export default function ManageScreen() {
         priority: 'medium',
         estimatedTime: '',
         assignedTo: '',
+        roomId: '',
       });
       setShowAssignees(false);
+      setShowRooms(false);
 
       // Show success message
       Alert.alert('Success', 'Task created successfully', [
@@ -100,12 +111,32 @@ export default function ManageScreen() {
 
   const toggleAssignees = () => {
     setShowAssignees(!showAssignees);
+    if (!showAssignees) {
+      setShowRooms(false);
+    }
+  };
+
+  const toggleRooms = () => {
+    setShowRooms(!showRooms);
+    if (!showRooms) {
+      setShowAssignees(false);
+    }
   };
 
   const assignToUser = (profileId: string, fullName: string | null) => {
     setNewTask({ ...newTask, assignedTo: profileId });
     setShowAssignees(false);
     Alert.alert('Task Assignment', `Task will be assigned to ${fullName || 'selected user'}`);
+  };
+
+  const assignToRoom = (roomId: string, roomName: string) => {
+    setNewTask({ ...newTask, roomId });
+    setShowRooms(false);
+    Alert.alert('Room Selection', `Task will be assigned to ${roomName}`);
+  };
+
+  const goToRoomsScreen = () => {
+    router.push('/(tabs)/rooms');
   };
 
   if (checkingAdmin) {
@@ -248,6 +279,70 @@ export default function ManageScreen() {
           )}
         </View>
 
+        <View style={styles.inputGroup}>
+          <View style={styles.assignHeader}>
+            <Text style={styles.label}>Room</Text>
+            <View style={styles.roomActions}>
+              <TouchableOpacity 
+                style={styles.assignButton}
+                onPress={toggleRooms}
+              >
+                <Home size={16} color="#0891b2" />
+                <Text style={styles.assignButtonText}>
+                  {showRooms ? 'Hide' : 'Show'} Rooms
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.assignButton}
+                onPress={goToRoomsScreen}
+              >
+                <Plus size={16} color="#0891b2" />
+                <Text style={styles.assignButtonText}>Manage</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {showRooms && (
+            <View style={styles.assigneesContainer}>
+              <TouchableOpacity 
+                style={styles.assigneeItem}
+                onPress={() => assignToRoom('', 'No Room (Default)')}
+              >
+                <Text style={styles.assigneeName}>No specific room (Default)</Text>
+              </TouchableOpacity>
+              
+              {rooms.map(room => (
+                <TouchableOpacity 
+                  key={room.id}
+                  style={styles.assigneeItem}
+                  onPress={() => assignToRoom(room.id, room.name)}
+                >
+                  <Text style={styles.assigneeName}>{room.name}</Text>
+                  {room.description && (
+                    <Text style={styles.assigneeRole} numberOfLines={1}>
+                      {room.description.substring(0, 20)}
+                      {room.description.length > 20 ? '...' : ''}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          
+          {newTask.roomId && (
+            <View style={styles.selectedAssignee}>
+              <Home size={14} color="#64748b" />
+              <Text style={styles.selectedAssigneeText}>
+                Room: {
+                  newTask.roomId === '' 
+                    ? 'No specific room' 
+                    : rooms.find(r => r.id === newTask.roomId)?.name || 'Selected Room'
+                }
+              </Text>
+            </View>
+          )}
+        </View>
+
         <Pressable 
           style={styles.addButton} 
           onPress={handleAddTask}
@@ -364,6 +459,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  roomActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   assignButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -394,6 +493,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: '#0f172a',
+    flex: 1,
   },
   assigneeRole: {
     fontSize: 12,

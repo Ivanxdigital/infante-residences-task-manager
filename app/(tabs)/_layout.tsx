@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { CircleCheck as CheckCircle2, ListTodo, Settings, ShieldCheck } from 'lucide-react-native';
+import { CircleCheck as CheckCircle2, ListTodo, Settings, ShieldCheck, Home } from 'lucide-react-native';
 import { isAdmin } from '../../lib/profiles';
 
 export default function TabLayout() {
@@ -58,6 +58,14 @@ export default function TabLayout() {
           }}
         />
       )}
+      <Tabs.Screen
+        name="rooms"
+        options={{
+          title: 'Rooms',
+          headerTitle: 'Infante Residences',
+          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+        }}
+      />
       <Tabs.Screen
         name="manage"
         options={{

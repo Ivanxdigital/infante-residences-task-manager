@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { Task } from '../components/TaskCard';
 import { isAdmin } from './profiles';
+import { fetchRooms, Room } from './rooms';
 
 // Type for the database task
 export interface DbTask {
@@ -12,22 +13,35 @@ export interface DbTask {
   estimated_time: string;
   notes: string | null;
   assigned_to: string | null;
+  room_id: string | null;
   created_at: string;
   updated_at: string;
   created_by: string;
 }
 
 // Convert database task to app task
-export const dbTaskToAppTask = (dbTask: DbTask): Task => ({
-  id: dbTask.id,
-  title: dbTask.title,
-  description: dbTask.description,
-  priority: dbTask.priority,
-  completed: dbTask.completed,
-  estimatedTime: dbTask.estimated_time,
-  notes: dbTask.notes || undefined,
-  assignedTo: dbTask.assigned_to || undefined,
-});
+export const dbTaskToAppTask = async (dbTask: DbTask): Promise<Task> => {
+  let roomName;
+  if (dbTask.room_id) {
+    // Get room name if room_id exists
+    const rooms = await fetchRooms();
+    const room = rooms.find(r => r.id === dbTask.room_id);
+    roomName = room?.name;
+  }
+
+  return {
+    id: dbTask.id,
+    title: dbTask.title,
+    description: dbTask.description,
+    priority: dbTask.priority,
+    completed: dbTask.completed,
+    estimatedTime: dbTask.estimated_time,
+    notes: dbTask.notes || undefined,
+    assignedTo: dbTask.assigned_to || undefined,
+    roomId: dbTask.room_id || undefined,
+    roomName: roomName,
+  };
+};
 
 // Convert app task to database task (for inserts/updates)
 export const appTaskToDbTask = (task: Partial<Task>): Partial<DbTask> => ({
@@ -38,10 +52,11 @@ export const appTaskToDbTask = (task: Partial<Task>): Partial<DbTask> => ({
   estimated_time: task.estimatedTime,
   notes: task.notes || null,
   assigned_to: task.assignedTo || null,
+  room_id: task.roomId || null,
 });
 
 // Fetch tasks based on user role
-export const fetchTasks = async (): Promise<Task[]> => {
+export const fetchTasks = async (roomId?: string): Promise<Task[]> => {
   try {
     const userIsAdmin = await isAdmin();
     const { data: user } = await supabase.auth.getUser();
@@ -57,6 +72,11 @@ export const fetchTasks = async (): Promise<Task[]> => {
       query = query.eq('assigned_to', user.user.id);
     }
     
+    // If roomId is provided, filter by room
+    if (roomId) {
+      query = query.eq('room_id', roomId);
+    }
+    
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
@@ -64,7 +84,13 @@ export const fetchTasks = async (): Promise<Task[]> => {
       return [];
     }
 
-    return (data as DbTask[]).map(dbTaskToAppTask);
+    // Convert DB tasks to app tasks with room names
+    const tasks: Task[] = [];
+    for (const dbTask of data as DbTask[]) {
+      tasks.push(await dbTaskToAppTask(dbTask));
+    }
+
+    return tasks;
   } catch (error) {
     console.error('Error in fetchTasks:', error);
     return [];
@@ -251,6 +277,34 @@ export const updateTaskNotes = async (taskId: string, notes: string): Promise<Ta
     return dbTaskToAppTask(data as DbTask);
   } catch (error) {
     console.error('Error in updateTaskNotes:', error);
+    return null;
+  }
+};
+
+// Assign a task to a room (admin only)
+export const assignTaskToRoom = async (taskId: string, roomId: string | null): Promise<Task | null> => {
+  try {
+    const userIsAdmin = await isAdmin();
+    if (!userIsAdmin) {
+      console.error('Only admins can assign tasks to rooms');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({ room_id: roomId })
+      .eq('id', taskId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error assigning task to room:', error);
+      return null;
+    }
+
+    return dbTaskToAppTask(data as DbTask);
+  } catch (error) {
+    console.error('Error in assignTaskToRoom:', error);
     return null;
   }
 }; 

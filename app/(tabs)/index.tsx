@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Text, ActivityIndicator } from 'react-native';
+import { View, ScrollView, StyleSheet, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { TaskCard, Task } from '../../components/TaskCard';
 import { fetchTasks, toggleTaskCompletion } from '../../lib/tasks';
 import { isAdmin } from '../../lib/profiles';
+import { useLocalSearchParams, router } from 'expo-router';
+import { Home, X } from 'lucide-react-native';
 
 export default function TasksScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userIsAdmin, setUserIsAdmin] = useState(false);
+  
+  // Get room filter from URL params
+  const params = useLocalSearchParams<{ roomId?: string; roomName?: string }>();
+  const roomId = params.roomId;
+  const roomName = params.roomName;
 
   useEffect(() => {
-    loadTasks();
     checkAdminStatus();
-  }, []);
+    loadTasks();
+  }, [roomId]);
 
   const checkAdminStatus = async () => {
     try {
@@ -27,7 +34,7 @@ export default function TasksScreen() {
   const loadTasks = async () => {
     try {
       setLoading(true);
-      const tasksData = await fetchTasks();
+      const tasksData = await fetchTasks(roomId);
       setTasks(tasksData);
       setError(null);
     } catch (err) {
@@ -55,6 +62,10 @@ export default function TasksScreen() {
       // Revert the optimistic update if there was an error
       loadTasks();
     }
+  };
+
+  const clearRoomFilter = () => {
+    router.replace('/(tabs)');
   };
 
   const incompleteTasks = tasks.filter(task => !task.completed);
@@ -85,13 +96,40 @@ export default function TasksScreen() {
         </Text>
       </View>
 
+      {roomId && roomName && (
+        <View style={styles.roomFilterContainer}>
+          <View style={styles.roomFilter}>
+            <Home size={16} color="#0891b2" />
+            <Text style={styles.roomFilterText}>
+              Filtered by room: {roomName}
+            </Text>
+            <TouchableOpacity 
+              style={styles.clearFilterButton}
+              onPress={clearRoomFilter}
+            >
+              <X size={16} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {incompleteTasks.length === 0 && completedTasks.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>
-            {userIsAdmin 
-              ? "No tasks yet. Add some tasks to get started!" 
-              : "No tasks assigned to you yet."}
+            {roomId 
+              ? `No tasks found in ${roomName || 'this room'}.` 
+              : userIsAdmin 
+                ? "No tasks yet. Add some tasks to get started!" 
+                : "No tasks assigned to you yet."}
           </Text>
+          {roomId && (
+            <TouchableOpacity 
+              style={styles.clearFilterButton}
+              onPress={clearRoomFilter}
+            >
+              <Text style={styles.clearFilterText}>Clear room filter</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <>
@@ -102,6 +140,7 @@ export default function TasksScreen() {
               onToggle={toggleTask} 
               showAssignee={userIsAdmin}
               showNotes={userIsAdmin}
+              showRoom={!roomId}
             />
           ))}
 
@@ -115,6 +154,7 @@ export default function TasksScreen() {
                   onToggle={toggleTask} 
                   showAssignee={userIsAdmin}
                   showNotes={userIsAdmin}
+                  showRoom={!roomId}
                 />
               ))}
             </>
@@ -144,6 +184,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: '#64748b',
+  },
+  roomFilterContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  roomFilter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0f2fe',
+    padding: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  roomFilterText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#0891b2',
+  },
+  clearFilterButton: {
+    padding: 4,
+  },
+  clearFilterText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#0891b2',
+    marginTop: 12,
   },
   sectionTitle: {
     fontSize: 18,
