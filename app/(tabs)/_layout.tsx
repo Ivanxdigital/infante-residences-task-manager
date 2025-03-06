@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { CircleCheck as CheckCircle2, ListTodo, Settings, ShieldCheck, Home } from 'lucide-react-native';
+import { CircleCheck as CheckCircle2, ListTodo, Settings, ShieldCheck, Home, User } from 'lucide-react-native';
 import { isAdmin } from '../../lib/profiles';
 
 export default function TabLayout() {
@@ -72,6 +72,14 @@ export default function TabLayout() {
           title: 'Manage',
           headerTitle: 'Infante Residences',
           tabBarIcon: ({ color, size }) => <ListTodo size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          headerTitle: 'Infante Residences',
+          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
         }}
       />
       <Tabs.Screen

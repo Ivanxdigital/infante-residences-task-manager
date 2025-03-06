@@ -6,6 +6,8 @@ export interface Profile {
   id: string;
   role: UserRole;
   full_name: string | null;
+  date_of_birth: string | null;
+  bio: string | null;
   created_at: string;
   updated_at: string;
 }
