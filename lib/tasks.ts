@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { Task } from '../components/TaskCard';
 import { isAdmin } from './profiles';
 import { fetchRooms, Room } from './rooms';
+import { areNotificationsEnabled, sendNotificationToRoles, sendNotificationToUsers } from './notifications';
 
 // Type for the database task
 export interface DbTask {
@@ -131,6 +132,36 @@ export const createTask = async (task: Omit<Task, 'id'>): Promise<Task | null> =
       return null;
     }
 
+    // Send notifications to admins and housekeepers if notifications are enabled
+    const notificationsEnabled = await areNotificationsEnabled();
+    if (notificationsEnabled) {
+      // Get room name if available
+      let roomInfo = '';
+      if (task.roomId) {
+        const rooms = await fetchRooms();
+        const room = rooms.find(r => r.id === task.roomId);
+        if (room) {
+          roomInfo = ` in ${room.name}`;
+        }
+      }
+
+      // Send notification to admins
+      await sendNotificationToRoles(
+        ['admin'],
+        'New Task Created',
+        `A new task "${task.title}"${roomInfo} has been created.`
+      );
+
+      // Send notification to housekeepers if the task is assigned to someone
+      if (task.assignedTo) {
+        await sendNotificationToRoles(
+          ['housekeeper'],
+          'New Task Available',
+          `A new task "${task.title}"${roomInfo} has been assigned.`
+        );
+      }
+    }
+
     return dbTaskToAppTask(data as DbTask);
   } catch (error) {
     console.error('Error in createTask:', error);
@@ -246,7 +277,32 @@ export const assignTask = async (taskId: string, userId: string | null): Promise
       return null;
     }
 
-    return dbTaskToAppTask(data as DbTask);
+    const task = await dbTaskToAppTask(data as DbTask);
+
+    // Send notification to the assigned user if notifications are enabled
+    if (userId) {
+      const notificationsEnabled = await areNotificationsEnabled();
+      if (notificationsEnabled) {
+        // Get room name if available
+        let roomInfo = '';
+        if (task.roomId) {
+          const rooms = await fetchRooms();
+          const room = rooms.find(r => r.id === task.roomId);
+          if (room) {
+            roomInfo = ` in ${room.name}`;
+          }
+        }
+
+        // Send notification to the assigned user
+        await sendNotificationToUsers(
+          [userId],
+          'Task Assigned',
+          `You have been assigned a new task: "${task.title}"${roomInfo}.`
+        );
+      }
+    }
+
+    return task;
   } catch (error) {
     console.error('Error in assignTask:', error);
     return null;

@@ -1,12 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, Pressable, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Bell, Moon, LogOut, Info, FileText, Shield } from 'lucide-react-native';
 import * as Animatable from 'react-native-animatable';
 import { signOut } from '../../lib/auth';
 import { router } from 'expo-router';
+import { areNotificationsEnabled, toggleNotifications } from '../../lib/notifications';
 
 export default function SettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load notification settings on component mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const enabled = await areNotificationsEnabled();
+        setNotificationsEnabled(enabled);
+      } catch (error) {
+        console.error('Error loading notification settings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  // Handle toggling push notifications
+  const handleToggleNotifications = async (value: boolean) => {
+    try {
+      setIsLoading(true);
+      await toggleNotifications(value);
+      setNotificationsEnabled(value);
+      
+      if (value) {
+        Alert.alert(
+          'Notifications Enabled',
+          'You will now receive notifications when new tasks are added.'
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling notifications:', error);
+      Alert.alert('Error', 'Failed to update notification settings.');
+      // Revert the switch state on error
+      setNotificationsEnabled(!value);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -53,10 +96,16 @@ export default function SettingsScreen() {
             <Bell size={20} color="#64748b" />
             <Text style={styles.settingText}>Push Notifications</Text>
           </View>
-          <Switch
-            trackColor={{ false: '#cbd5e1', true: '#0891b2' }}
-            thumbColor="#ffffff"
-          />
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#0891b2" />
+          ) : (
+            <Switch
+              trackColor={{ false: '#cbd5e1', true: '#0891b2' }}
+              thumbColor="#ffffff"
+              value={notificationsEnabled}
+              onValueChange={handleToggleNotifications}
+            />
+          )}
         </View>
 
         <View style={styles.settingItem}>
@@ -67,6 +116,8 @@ export default function SettingsScreen() {
           <Switch
             trackColor={{ false: '#cbd5e1', true: '#0891b2' }}
             thumbColor="#ffffff"
+            value={darkModeEnabled}
+            onValueChange={setDarkModeEnabled}
           />
         </View>
       </View>

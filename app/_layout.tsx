@@ -5,87 +5,73 @@ import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@e
 import { SplashScreen } from 'expo-router';
 import { isAuthenticated, onAuthStateChange } from '../lib/auth';
 import { View, ActivityIndicator, Text } from 'react-native';
+import { areNotificationsEnabled, registerForPushNotifications } from '../lib/notifications';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
+  const [loaded, error] = useFonts({
     'Inter-Regular': Inter_400Regular,
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
   });
-  const [authChecked, setAuthChecked] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [isUserAuthenticated, setIsUserAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Check if user is authenticated
     const checkAuth = async () => {
-      try {
-        const authenticated = await isAuthenticated();
-        setIsLoggedIn(authenticated);
-        setAuthError(null);
-      } catch (error) {
-        console.error('Error checking authentication:', error);
-        setIsLoggedIn(false);
-        setAuthError('Failed to check authentication status');
-      } finally {
-        setAuthChecked(true);
+      const authenticated = await isAuthenticated();
+      setIsUserAuthenticated(authenticated);
+    };
+
+    // Set up auth state listener
+    const { data: authListener } = onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        setIsUserAuthenticated(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsUserAuthenticated(false);
+      }
+    });
+
+    // Initialize push notifications if enabled
+    const initNotifications = async () => {
+      const enabled = await areNotificationsEnabled();
+      if (enabled) {
+        await registerForPushNotifications();
       }
     };
 
     checkAuth();
-
-    // Listen for auth state changes
-    const { data: authListener } = onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session ? 'Session exists' : 'No session');
-      setIsLoggedIn(!!session);
-      
-      // Navigate based on auth state
-      if (session) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/login');
-      }
-    });
+    initNotifications();
 
     return () => {
-      if (authListener?.subscription) {
-        authListener.subscription.unsubscribe();
-      }
+      authListener?.subscription.unsubscribe();
     };
   }, []);
 
+  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (authChecked && (fontsLoaded || fontError)) {
-      SplashScreen.hideAsync();
-      
-      // Initial navigation based on auth state
-      if (!isLoggedIn) {
-        router.replace('/login');
-      }
-    }
-  }, [fontsLoaded, fontError, authChecked, isLoggedIn]);
+    if (error) throw error;
+  }, [error]);
 
-  if (!fontsLoaded && !fontError || !authChecked) {
+  useEffect(() => {
+    if (loaded && isUserAuthenticated !== null) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, isUserAuthenticated]);
+
+  if (!loaded || isUserAuthenticated === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#0891b2" />
-        {authError && (
-          <Text style={{ marginTop: 10, color: 'red' }}>
-            {authError}
-          </Text>
-        )}
       </View>
     );
   }
 
   return (
-    <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" redirect={!isUserAuthenticated} />
+      <Stack.Screen name="login" redirect={isUserAuthenticated} />
+    </Stack>
   );
 }

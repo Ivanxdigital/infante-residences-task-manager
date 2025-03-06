@@ -5,9 +5,19 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'housekeeper' CHECK (role IN ('housekeeper', 'admin')),
   full_name TEXT,
+  push_token TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add push_token column if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM information_schema.columns 
+                WHERE table_name = 'profiles' AND column_name = 'push_token') THEN
+    ALTER TABLE profiles ADD COLUMN push_token TEXT;
+  END IF;
+END $$;
 
 -- Enable Row Level Security on profiles if not already enabled
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
