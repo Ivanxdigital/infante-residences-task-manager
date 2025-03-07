@@ -6,6 +6,7 @@ import { createTask } from '../../lib/tasks';
 import { router } from 'expo-router';
 import { isAdmin, getAllProfiles, Profile } from '../../lib/profiles';
 import { fetchRooms, Room } from '../../lib/rooms';
+import { Image } from 'expo-image';
 
 export default function ManageScreen() {
   const [newTask, setNewTask] = useState({
@@ -247,6 +248,7 @@ export default function ManageScreen() {
                 style={styles.assigneeItem}
                 onPress={() => assignToUser('', 'Yourself (Default)')}
               >
+                <User size={20} color="#64748b" style={styles.defaultAvatar} />
                 <Text style={styles.assigneeName}>Assign to yourself (Default)</Text>
               </TouchableOpacity>
               
@@ -256,10 +258,23 @@ export default function ManageScreen() {
                   style={styles.assigneeItem}
                   onPress={() => assignToUser(profile.id, profile.full_name)}
                 >
-                  <Text style={styles.assigneeName}>
-                    {profile.full_name || profile.id.substring(0, 8)}
-                  </Text>
-                  <Text style={styles.assigneeRole}>{profile.role}</Text>
+                  {profile.avatar_url ? (
+                    <Image 
+                      source={{ uri: profile.avatar_url }} 
+                      style={styles.assigneeAvatar} 
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={styles.assigneeAvatarPlaceholder}>
+                      <User size={16} color="#64748b" />
+                    </View>
+                  )}
+                  <View style={styles.assigneeInfo}>
+                    <Text style={styles.assigneeName}>
+                      {profile.full_name || profile.id.substring(0, 8)}
+                    </Text>
+                    <Text style={styles.assigneeRole}>{profile.role}</Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -267,7 +282,22 @@ export default function ManageScreen() {
           
           {newTask.assignedTo && (
             <View style={styles.selectedAssignee}>
-              <User size={14} color="#64748b" />
+              {newTask.assignedTo === '' ? (
+                <User size={14} color="#64748b" />
+              ) : (
+                (() => {
+                  const assignedProfile = profiles.find(p => p.id === newTask.assignedTo);
+                  return assignedProfile?.avatar_url ? (
+                    <Image 
+                      source={{ uri: assignedProfile.avatar_url }} 
+                      style={styles.selectedAssigneeAvatar} 
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <User size={14} color="#64748b" />
+                  );
+                })()
+              )}
               <Text style={styles.selectedAssigneeText}>
                 Assigned to: {
                   newTask.assignedTo === '' 
@@ -477,45 +507,78 @@ const styles = StyleSheet.create({
   assigneesContainer: {
     backgroundColor: '#f8fafc',
     borderRadius: 8,
+    padding: 8,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    marginBottom: 12,
+    maxHeight: 200,
   },
   assigneeItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    gap: 12,
+  },
+  defaultAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  assigneeAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  assigneeAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  assigneeInfo: {
+    flex: 1,
   },
   assigneeName: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Inter-Medium',
     color: '#0f172a',
-    flex: 1,
   },
   assigneeRole: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: '#64748b',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    marginTop: 2,
   },
   selectedAssignee: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     backgroundColor: '#f1f5f9',
     padding: 8,
     borderRadius: 6,
+    marginTop: 8,
+    gap: 8,
   },
   selectedAssigneeText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: '#64748b',
+  },
+  selectedAssigneeAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   addButton: {
     backgroundColor: '#0891b2',

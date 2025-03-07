@@ -15,8 +15,9 @@ import { router } from 'expo-router';
 import { isAdmin, getAllProfiles, Profile } from '../../lib/profiles';
 import { Task } from '../../components/TaskCard';
 import { fetchTasks, assignTask, updateTaskNotes } from '../../lib/tasks';
-import { User, FileText, X, Check, Edit } from 'lucide-react-native';
+import { User, FileText, X, Check, Edit, Save } from 'lucide-react-native';
 import * as Animatable from 'react-native-animatable';
+import { Image } from 'expo-image';
 
 export default function AdminScreen() {
   const [loading, setLoading] = useState(true);
@@ -196,7 +197,18 @@ export default function AdminScreen() {
                 
                 {task.assignedTo && (
                   <View style={styles.assignedContainer}>
-                    <User size={14} color="#64748b" />
+                    {(() => {
+                      const assignedProfile = profiles.find(p => p.id === task.assignedTo);
+                      return assignedProfile?.avatar_url ? (
+                        <Image 
+                          source={{ uri: assignedProfile.avatar_url }} 
+                          style={styles.assignedAvatar} 
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <User size={14} color="#64748b" />
+                      );
+                    })()}
                     <Text style={styles.assignedText}>
                       Assigned to: {profiles.find(p => p.id === task.assignedTo)?.full_name || 'Unknown user'}
                     </Text>
@@ -212,9 +224,23 @@ export default function AdminScreen() {
                         style={styles.profileItem}
                         onPress={() => handleAssignTask(task, profile)}
                       >
-                        <User size={16} color="#64748b" />
-                        <Text style={styles.profileName}>{profile.full_name || profile.id.substring(0, 8)}</Text>
-                        <Text style={styles.profileRole}>{profile.role}</Text>
+                        {profile.avatar_url ? (
+                          <Image 
+                            source={{ uri: profile.avatar_url }} 
+                            style={styles.profileAvatar} 
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.profileAvatarPlaceholder}>
+                            <User size={16} color="#64748b" />
+                          </View>
+                        )}
+                        <View style={styles.profileInfo}>
+                          <Text style={styles.profileName}>
+                            {profile.full_name || profile.id.substring(0, 8)}
+                          </Text>
+                          <Text style={styles.profileRole}>{profile.role}</Text>
+                        </View>
                       </TouchableOpacity>
                     ))}
                     <TouchableOpacity 
@@ -447,8 +473,11 @@ const styles = StyleSheet.create({
   assignedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    backgroundColor: '#f1f5f9',
+    padding: 8,
+    borderRadius: 6,
     marginTop: 8,
+    gap: 8,
   },
   assignedText: {
     fontSize: 13,
@@ -456,39 +485,38 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   profilesList: {
-    marginTop: 12,
     backgroundColor: '#f8fafc',
     borderRadius: 8,
-    padding: 12,
+    padding: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 12,
   },
   profilesTitle: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: '#64748b',
     marginBottom: 8,
+    paddingHorizontal: 4,
   },
   profileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-    gap: 8,
+    gap: 12,
   },
   profileName: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#1e293b',
-    flex: 1,
+    fontFamily: 'Inter-Medium',
+    color: '#0f172a',
   },
   profileRole: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: '#64748b',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
   },
   cancelButton: {
     flexDirection: 'row',
@@ -619,5 +647,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: '#ffffff',
+  },
+  assignedAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  profileAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  profileAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  profileInfo: {
+    flex: 1,
   },
 }); 

@@ -1,7 +1,14 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Clock, CircleAlert as AlertCircle, FileText, User, Home } from 'lucide-react-native';
+import { Image } from 'expo-image';
 
 export type Priority = 'low' | 'medium' | 'high';
+
+export interface Assignee {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
 
 export interface Task {
   id: string;
@@ -12,6 +19,7 @@ export interface Task {
   estimatedTime?: string;
   notes?: string;
   assignedTo?: string;
+  assignee?: Assignee;
   roomId?: string;
   roomName?: string;
 }
@@ -62,10 +70,20 @@ export function TaskCard({ task, onToggle, showAssignee = false, showNotes = fal
               {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
             </Text>
           </View>
-          {showAssignee && task.assignedTo && (
+          {showAssignee && task.assignee && (
             <View style={styles.metaItem}>
-              <User size={16} color="#64748b" />
-              <Text style={styles.metaText}>Assigned</Text>
+              {task.assignee.avatar_url ? (
+                <Image 
+                  source={{ uri: task.assignee.avatar_url }} 
+                  style={styles.assigneeAvatar} 
+                  contentFit="cover"
+                />
+              ) : (
+                <User size={16} color="#64748b" />
+              )}
+              <Text style={styles.metaText}>
+                {task.assignee.full_name || 'Assigned'}
+              </Text>
             </View>
           )}
           {showRoom && task.roomName && (
@@ -149,5 +167,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: '#64748b',
     flex: 1,
+  },
+  assigneeAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
   },
 });

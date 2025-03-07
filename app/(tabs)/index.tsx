@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { TaskCard, Task } from '../../components/TaskCard';
+import { RoomTaskGroup } from '../../components/RoomTaskGroup';
+import { UncategorizedTaskGroup } from '../../components/UncategorizedTaskGroup';
 import { fetchTasks, toggleTaskCompletion } from '../../lib/tasks';
+import { fetchRooms, Room } from '../../lib/rooms';
 import { isAdmin } from '../../lib/profiles';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Home, X } from 'lucide-react-native';
+import { Home, X, RefreshCw } from 'lucide-react-native';
 
 export default function TasksScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userIsAdmin, setUserIsAdmin] = useState(false);
   
@@ -19,7 +24,7 @@ export default function TasksScreen() {
 
   useEffect(() => {
     checkAdminStatus();
-    loadTasks();
+    loadData();
   }, [roomId]);
 
   const checkAdminStatus = async () => {
@@ -31,18 +36,31 @@ export default function TasksScreen() {
     }
   };
 
-  const loadTasks = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const tasksData = await fetchTasks(roomId);
+      
+      // Load tasks and rooms in parallel
+      const [tasksData, roomsData] = await Promise.all([
+        fetchTasks(roomId),
+        fetchRooms()
+      ]);
+      
       setTasks(tasksData);
+      setRooms(roomsData);
       setError(null);
     } catch (err) {
-      console.error('Failed to load tasks:', err);
+      console.error('Failed to load data:', err);
       setError('Failed to load tasks. Please try again.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
 
   const toggleTask = async (id: string) => {
@@ -60,7 +78,7 @@ export default function TasksScreen() {
     } catch (err) {
       console.error('Failed to toggle task:', err);
       // Revert the optimistic update if there was an error
-      loadTasks();
+      loadData();
     }
   };
 
@@ -68,8 +86,30 @@ export default function TasksScreen() {
     router.replace('/(tabs)');
   };
 
-  const incompleteTasks = tasks.filter(task => !task.completed);
-  const completedTasks = tasks.filter(task => task.completed);
+  // Group tasks by room
+  const groupTasksByRoom = () => {
+    const tasksByRoom: Record<string, Task[]> = {};
+    const uncategorizedTasks: Task[] = [];
+    
+    // Initialize with empty arrays for all rooms
+    rooms.forEach(room => {
+      tasksByRoom[room.id] = [];
+    });
+    
+    // Add tasks to their respective rooms
+    tasks.forEach(task => {
+      if (task.roomId) {
+        if (!tasksByRoom[task.roomId]) {
+          tasksByRoom[task.roomId] = [];
+        }
+        tasksByRoom[task.roomId].push(task);
+      } else {
+        uncategorizedTasks.push(task);
+      }
+    });
+    
+    return { tasksByRoom, uncategorizedTasks };
+  };
 
   if (loading) {
     return (
@@ -83,25 +123,33 @@ export default function TasksScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+          <RefreshCw size={16} color="#0891b2" />
+          <Text style={styles.refreshButtonText}>Try Again</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Today's Tasks</Text>
-        <Text style={styles.subtitle}>
-          {incompleteTasks.length} remaining • {completedTasks.length} completed
-        </Text>
-      </View>
+  // If filtering by room, show only that room's tasks
+  if (roomId && roomName) {
+    const roomTasks = tasks.filter(task => task.roomId === roomId);
+    const incompleteTasks = roomTasks.filter(task => !task.completed);
+    
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Room Tasks</Text>
+          <Text style={styles.subtitle}>
+            {incompleteTasks.length} remaining • {roomTasks.length - incompleteTasks.length} completed
+          </Text>
+        </View>
 
-      {roomId && roomName && (
         <View style={styles.roomFilterContainer}>
           <View style={styles.roomFilter}>
             <Home size={16} color="#0891b2" />
             <Text style={styles.roomFilterText}>
-              Filtered by room: {roomName}
+              {roomName}
             </Text>
             <TouchableOpacity 
               style={styles.clearFilterButton}
@@ -111,53 +159,82 @@ export default function TasksScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      )}
 
-      {incompleteTasks.length === 0 && completedTasks.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>
-            {roomId 
-              ? `No tasks found in ${roomName || 'this room'}.` 
-              : userIsAdmin 
-                ? "No tasks yet. Add some tasks to get started!" 
-                : "No tasks assigned to you yet."}
-          </Text>
-          {roomId && (
+        {roomTasks.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              No tasks found in {roomName}.
+            </Text>
             <TouchableOpacity 
               style={styles.clearFilterButton}
               onPress={clearRoomFilter}
             >
-              <Text style={styles.clearFilterText}>Clear room filter</Text>
+              <Text style={styles.clearFilterText}>View all tasks</Text>
             </TouchableOpacity>
-          )}
+          </View>
+        ) : (
+          <RoomTaskGroup
+            roomName={roomName}
+            roomId={roomId}
+            tasks={roomTasks}
+            onToggle={toggleTask}
+            showAssignee={userIsAdmin}
+            showNotes={userIsAdmin}
+          />
+        )}
+      </ScrollView>
+    );
+  }
+
+  // For the main view, group tasks by room
+  const { tasksByRoom, uncategorizedTasks } = groupTasksByRoom();
+  const totalIncompleteTasks = tasks.filter(task => !task.completed).length;
+  const totalCompletedTasks = tasks.filter(task => task.completed).length;
+  
+  // Get rooms that have tasks
+  const roomsWithTasks = rooms.filter(room => tasksByRoom[room.id]?.length > 0);
+  const hasAnyTasks = roomsWithTasks.length > 0 || uncategorizedTasks.length > 0;
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Today's Tasks</Text>
+        <Text style={styles.subtitle}>
+          {totalIncompleteTasks} remaining • {totalCompletedTasks} completed
+        </Text>
+      </View>
+
+      {!hasAnyTasks ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>
+            {userIsAdmin 
+              ? "No tasks yet. Add some tasks to get started!" 
+              : "No tasks assigned to you yet."}
+          </Text>
         </View>
       ) : (
         <>
-          {incompleteTasks.map(task => (
-            <TaskCard 
-              key={task.id} 
-              task={task} 
-              onToggle={toggleTask} 
+          {/* Show rooms with tasks */}
+          {roomsWithTasks.map(room => (
+            <RoomTaskGroup
+              key={room.id}
+              roomName={room.name}
+              roomId={room.id}
+              tasks={tasksByRoom[room.id]}
+              onToggle={toggleTask}
               showAssignee={userIsAdmin}
               showNotes={userIsAdmin}
-              showRoom={!roomId}
             />
           ))}
-
-          {completedTasks.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>Completed</Text>
-              {completedTasks.map(task => (
-                <TaskCard 
-                  key={task.id} 
-                  task={task} 
-                  onToggle={toggleTask} 
-                  showAssignee={userIsAdmin}
-                  showNotes={userIsAdmin}
-                  showRoom={!roomId}
-                />
-              ))}
-            </>
+          
+          {/* Show uncategorized tasks */}
+          {uncategorizedTasks.length > 0 && (
+            <UncategorizedTaskGroup
+              tasks={uncategorizedTasks}
+              onToggle={toggleTask}
+              showAssignee={userIsAdmin}
+              showNotes={userIsAdmin}
+            />
           )}
         </>
       )}
@@ -230,6 +307,21 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 16,
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0f2fe',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  refreshButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#0891b2',
   },
   emptyState: {
     padding: 20,

@@ -48,16 +48,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <CheckCircle2 size={size} color={color} />,
         }}
       />
-      {userIsAdmin && (
-        <Tabs.Screen
-          name="admin"
-          options={{
-            title: 'Admin',
-            headerTitle: 'Infante Residences',
-            tabBarIcon: ({ color, size }) => <ShieldCheck size={size} color={color} />,
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Admin',
+          headerTitle: 'Infante Residences',
+          tabBarIcon: ({ color, size }) => <ShieldCheck size={size} color={color} />,
+          href: userIsAdmin ? undefined : null,
+        }}
+      />
       <Tabs.Screen
         name="rooms"
         options={{

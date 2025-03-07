@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
-import { Task } from '../components/TaskCard';
-import { isAdmin } from './profiles';
+import { Task, Assignee } from '../components/TaskCard';
+import { isAdmin, getAllProfiles, Profile } from './profiles';
 import { fetchRooms, Room } from './rooms';
 import { areNotificationsEnabled, sendNotificationToRoles, sendNotificationToUsers } from './notifications';
 
@@ -30,6 +30,28 @@ export const dbTaskToAppTask = async (dbTask: DbTask): Promise<Task> => {
     roomName = room?.name;
   }
 
+  // Get assignee information if assigned_to exists
+  let assignee: Assignee | undefined;
+  if (dbTask.assigned_to) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('id', dbTask.assigned_to)
+        .single();
+      
+      if (data && !error) {
+        assignee = {
+          id: data.id,
+          full_name: data.full_name,
+          avatar_url: data.avatar_url
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching assignee:', error);
+    }
+  }
+
   return {
     id: dbTask.id,
     title: dbTask.title,
@@ -39,6 +61,7 @@ export const dbTaskToAppTask = async (dbTask: DbTask): Promise<Task> => {
     estimatedTime: dbTask.estimated_time,
     notes: dbTask.notes || undefined,
     assignedTo: dbTask.assigned_to || undefined,
+    assignee: assignee,
     roomId: dbTask.room_id || undefined,
     roomName: roomName,
   };

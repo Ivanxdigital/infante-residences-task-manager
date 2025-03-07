@@ -12,11 +12,14 @@ import {
   Platform,
   Modal
 } from 'react-native';
-import { User, Calendar, FileText, Save, X, Check } from 'lucide-react-native';
+import { User, Calendar, FileText, Save, X, Check, Camera, Upload } from 'lucide-react-native';
 import * as Animatable from 'react-native-animatable';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getCurrentProfile, updateProfile, Profile } from '../../lib/profiles';
+import { getCurrentProfile, updateProfile, Profile, uploadProfilePicture, uploadProfilePictureBase64, testSupabaseStorage } from '../../lib/profiles';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
+import { supabase } from '../../lib/supabase';
 
 export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
@@ -27,13 +30,29 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // For iOS modal date picker
   const [tempDate, setTempDate] = useState<Date>(new Date());
 
   useEffect(() => {
     loadProfile();
+    testSupabaseConnection();
   }, []);
+
+  const testSupabaseConnection = async () => {
+    try {
+      const storageAccessible = await testSupabaseStorage();
+      if (!storageAccessible) {
+        console.warn('Supabase storage is not accessible');
+      } else {
+        console.log('Supabase storage is accessible');
+      }
+    } catch (error) {
+      console.error('Error testing Supabase connection:', error);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -44,6 +63,7 @@ export default function ProfileScreen() {
       if (userProfile) {
         setFullName(userProfile.full_name || '');
         setBio(userProfile.bio || '');
+        setAvatarUrl(userProfile.avatar_url);
         if (userProfile.date_of_birth) {
           const dob = new Date(userProfile.date_of_birth);
           setDateOfBirth(dob);
@@ -68,6 +88,7 @@ export default function ProfileScreen() {
         full_name: fullName,
         bio: bio,
         date_of_birth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null,
+        avatar_url: avatarUrl,
       };
 
       const updatedProfile = await updateProfile(updates);
@@ -128,6 +149,182 @@ export default function ProfileScreen() {
     setShowDatePicker(true);
   };
 
+  const pickImage = async () => {
+    try {
+      // Test Supabase storage access first
+      const storageAccessible = await testSupabaseStorage();
+      if (!storageAccessible) {
+        console.error('Supabase storage is not accessible');
+        Alert.alert('Storage Error', 'Unable to access storage service. Please try again later.');
+        return;
+      }
+
+      // Request permission to access the photo library
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload a profile picture.');
+        return;
+      }
+
+      // Launch the image picker with lower quality settings
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5, // Lower quality to decrease file size
+        exif: false, // Don't include EXIF data to reduce file size
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedImage = result.assets[0];
+        
+        // Check if the image is valid
+        if (!selectedImage.uri) {
+          Alert.alert('Error', 'Selected image is invalid. Please try another image.');
+          return;
+        }
+        
+        // Check file size (limit to 2MB)
+        if (selectedImage.fileSize && selectedImage.fileSize > 2 * 1024 * 1024) {
+          Alert.alert('Error', 'Image is too large. Please select an image smaller than 2MB or try taking a photo instead.');
+          return;
+        }
+        
+        try {
+          await uploadImage(selectedImage.uri);
+        } catch (uploadError) {
+          console.error('Error in uploadImage:', uploadError);
+          Alert.alert('Upload Failed', 'Failed to upload the image. Please try again with a smaller image.');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      // Test Supabase storage access first
+      const storageAccessible = await testSupabaseStorage();
+      if (!storageAccessible) {
+        console.error('Supabase storage is not accessible');
+        Alert.alert('Storage Error', 'Unable to access storage service. Please try again later.');
+        return;
+      }
+
+      // Request permission to access the camera
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your camera to take a profile picture.');
+        return;
+      }
+
+      // Launch the camera with lower quality settings
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5, // Lower quality to decrease file size
+        exif: false, // Don't include EXIF data to reduce file size
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedImage = result.assets[0];
+        
+        // Check if the image is valid
+        if (!selectedImage.uri) {
+          Alert.alert('Error', 'Captured image is invalid. Please try again.');
+          return;
+        }
+        
+        // Check file size (limit to 2MB)
+        if (selectedImage.fileSize && selectedImage.fileSize > 2 * 1024 * 1024) {
+          Alert.alert('Error', 'Image is too large. Please try taking a different photo with lower resolution.');
+          return;
+        }
+        
+        try {
+          await uploadImage(selectedImage.uri);
+        } catch (uploadError) {
+          console.error('Error in uploadImage:', uploadError);
+          Alert.alert('Upload Failed', 'Failed to upload the image. Please try again with a smaller image.');
+        }
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    try {
+      if (!profile) {
+        Alert.alert('Error', 'Profile not loaded. Please try again later.');
+        return;
+      }
+      
+      setUploadingImage(true);
+      
+      // Validate the URI
+      if (!uri || typeof uri !== 'string') {
+        Alert.alert('Error', 'Invalid image format. Please try another image.');
+        setUploadingImage(false);
+        return;
+      }
+      
+      console.log('Starting upload process for image:', uri.substring(0, 50) + '...');
+      
+      try {
+        // First try the regular upload method
+        console.log('Trying regular upload method...');
+        let imageUrl = await uploadProfilePicture(profile.id, uri);
+        
+        // If regular method fails, try base64 method
+        if (!imageUrl) {
+          console.log('Regular upload failed, trying base64 method...');
+          imageUrl = await uploadProfilePictureBase64(profile.id, uri);
+        }
+        
+        console.log('Upload result:', imageUrl ? 'Success' : 'Failed');
+        
+        if (imageUrl) {
+          console.log('Setting avatar URL:', imageUrl.substring(0, 50) + '...');
+          setAvatarUrl(imageUrl);
+          
+          // Update the profile with the new avatar URL
+          console.log('Updating profile with new avatar URL');
+          const updates: Partial<Profile> = {
+            avatar_url: imageUrl,
+          };
+          
+          const updatedProfile = await updateProfile(updates);
+          
+          if (updatedProfile) {
+            console.log('Profile updated successfully');
+            setProfile(updatedProfile);
+            Alert.alert('Success', 'Profile picture updated successfully');
+          } else {
+            console.error('Failed to update profile with new avatar URL');
+            Alert.alert('Error', 'Failed to update profile with new picture. The image was uploaded but not saved to your profile.');
+          }
+        } else {
+          console.error('Both upload methods failed');
+          Alert.alert('Error', 'Failed to upload profile picture. Please try again with a smaller image.');
+        }
+      } catch (uploadError) {
+        console.error('Exception in uploadImage:', uploadError);
+        Alert.alert('Upload Error', 'An unexpected error occurred while uploading your profile picture. Please try again with a smaller image.');
+      }
+    } catch (error) {
+      console.error('Error in uploadImage outer block:', error);
+      Alert.alert('Error', 'Failed to upload profile picture. Please try again later.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -183,12 +380,49 @@ export default function ProfileScreen() {
                       setFullName(profile.full_name || '');
                       setBio(profile.bio || '');
                       setDateOfBirth(profile.date_of_birth ? new Date(profile.date_of_birth) : null);
+                      setAvatarUrl(profile.avatar_url);
                     }
                   }}
                 >
                   <X size={16} color="#64748b" />
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.avatarContainer}>
+              {uploadingImage ? (
+                <View style={styles.avatarLoading}>
+                  <ActivityIndicator size="small" color="#ffffff" />
+                </View>
+              ) : (
+                <Image
+                  source={avatarUrl ? { uri: avatarUrl } : require('../../assets/default-avatar.png')}
+                  style={styles.avatar}
+                  contentFit="cover"
+                  transition={300}
+                />
+              )}
+              
+              {isEditing && (
+                <View style={styles.avatarActions}>
+                  <TouchableOpacity 
+                    style={styles.avatarActionButton}
+                    onPress={takePhoto}
+                    disabled={uploadingImage}
+                  >
+                    <Camera size={18} color="#0891b2" />
+                    <Text style={styles.avatarActionText}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.avatarActionButton}
+                    onPress={pickImage}
+                    disabled={uploadingImage}
+                  >
+                    <Upload size={18} color="#0891b2" />
+                    <Text style={styles.avatarActionText}>Gallery</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
 
@@ -565,5 +799,52 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+  },
+  avatarContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    borderWidth: 3,
+    borderColor: '#0891b2',
+  },
+  avatarLoading: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#0891b2',
+  },
+  avatarActions: {
+    flexDirection: 'row',
+    marginTop: 12,
+    justifyContent: 'center',
+    gap: 16,
+  },
+  avatarActionButton: {
+    padding: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#0891b2',
+    gap: 8,
+  },
+  avatarActionText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: '#0891b2',
+    marginLeft: 4,
   },
 }); 
