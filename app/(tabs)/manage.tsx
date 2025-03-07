@@ -95,7 +95,10 @@ export default function ManageScreen() {
       Alert.alert('Success', 'Task created successfully', [
         { 
           text: 'View Tasks', 
-          onPress: () => router.navigate('/(tabs)') 
+          onPress: () => router.navigate({
+            pathname: '/(tabs)',
+            params: { refresh: Date.now().toString() }
+          })
         },
         { 
           text: 'Add Another', 

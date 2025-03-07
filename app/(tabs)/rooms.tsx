@@ -209,7 +209,11 @@ export default function RoomsScreen() {
                 style={styles.viewTasksButton}
                 onPress={() => router.push({
                   pathname: '/(tabs)',
-                  params: { roomId: room.id, roomName: room.name }
+                  params: { 
+                    roomId: room.id, 
+                    roomName: room.name,
+                    refresh: Date.now().toString()
+                  }
                 })}
               >
                 <Text style={styles.viewTasksText}>View Tasks</Text>

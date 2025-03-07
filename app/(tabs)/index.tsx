@@ -6,7 +6,7 @@ import { UncategorizedTaskGroup } from '../../components/UncategorizedTaskGroup'
 import { fetchTasks, toggleTaskCompletion } from '../../lib/tasks';
 import { fetchRooms, Room } from '../../lib/rooms';
 import { isAdmin } from '../../lib/profiles';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Home, X, RefreshCw } from 'lucide-react-native';
 
 export default function TasksScreen() {
@@ -18,14 +18,26 @@ export default function TasksScreen() {
   const [userIsAdmin, setUserIsAdmin] = useState(false);
   
   // Get room filter from URL params
-  const params = useLocalSearchParams<{ roomId?: string; roomName?: string }>();
+  const params = useLocalSearchParams<{ roomId?: string; roomName?: string; refresh?: string }>();
   const roomId = params.roomId;
   const roomName = params.roomName;
+  const refreshParam = params.refresh;
+
+  // Refresh tasks when the tab becomes active
+  useFocusEffect(
+    React.useCallback(() => {
+      // Don't reload if we're already loading
+      if (!loading && !refreshing) {
+        loadData();
+      }
+      return () => {};
+    }, [roomId]) // Only re-run if roomId changes
+  );
 
   useEffect(() => {
     checkAdminStatus();
     loadData();
-  }, [roomId]);
+  }, [roomId, refreshParam]);
 
   const checkAdminStatus = async () => {
     try {
